@@ -103,7 +103,7 @@ void loop() {
     digitalWrite(BLUE_LIGHT, LOW);
     Serial.println("Fan OFF");
     lcd.setCursor(0, 1);  
-    lcd.print("Heater On");
+    lcd.print("Fan OFF");
   }
 
 }
