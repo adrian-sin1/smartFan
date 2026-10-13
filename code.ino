@@ -1,9 +1,10 @@
-#include <DHT11.h>             
-#include <LiquidCrystal_I2C.h>    
+#include <DHT11.h>
+#include <LiquidCrystal_I2C.h>
+#include "src/FanController.h"
 
-LiquidCrystal_I2C lcd(0x27, 16, 3); 
+LiquidCrystal_I2C lcd(0x27, 16, 3);
 
-#define tempsensor 2  
+#define tempsensor 2
 
 #define FAN 7
 #define RED_LIGHT 6
@@ -11,15 +12,26 @@ LiquidCrystal_I2C lcd(0x27, 16, 3);
 #define Increase 13
 #define Decrease 12
 
-DHT11 dht(tempsensor);  
+DHT11 dht(tempsensor);
 
-int threshold = 76; 
+FanController controller;
 int pressed = 0;
 
-void setup() {
-  lcd.begin(); 
+void showSetTemperature() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Set Temperature");
+  lcd.setCursor(0, 1);
+  lcd.print(controller.threshold());
+  lcd.print(" F");
+  delay(1500);
+  lcd.clear();
+}
 
-  pinMode(FAN, OUTPUT); 
+void setup() {
+  lcd.begin();
+
+  pinMode(FAN, OUTPUT);
   pinMode(Increase, INPUT_PULLUP);
   pinMode(Decrease, INPUT_PULLUP);
 
@@ -27,11 +39,11 @@ void setup() {
   pinMode(BLUE_LIGHT, OUTPUT);
   digitalWrite(FAN, LOW);
 
-  Serial.begin(9600);  
+  Serial.begin(9600);
 }
 
 void loop() {
-  Serial.println(threshold); 
+  Serial.println(controller.threshold());
 
   int increaseButton = digitalRead(Increase);
   int decreaseButton = digitalRead(Decrease);
@@ -40,69 +52,53 @@ void loop() {
 
 
   if (decreaseButton == pressed) {
-    threshold -= 1;
-    lcd.clear();
-    lcd.setCursor(0, 0); 
-    lcd.print("Set Temperature");
-    lcd.setCursor(0, 1);  
-    lcd.print(threshold);
-    lcd.print(" F");
-    delay(1500);
-    lcd.clear();
+    controller.decreaseThreshold();
+    showSetTemperature();
   }
 
   if (increaseButton == pressed) {
-    threshold += 1;
-    lcd.clear();
-    lcd.setCursor(0, 0); 
-    lcd.print("Set Temperature");
-    lcd.setCursor(0, 1);  
-    lcd.print(threshold);
-    lcd.print(" F");
-    delay(1500);
-    lcd.clear();
+    controller.increaseThreshold();
+    showSetTemperature();
   }
 
 
-  float temperatureCelsius = dht.readTemperature();  
-  float temperatureFahrenheit = (temperatureCelsius * 9.0 / 5.0) + 32.0; 
-  int temperature = (int)temperatureFahrenheit;  
+  float temperatureCelsius = dht.readTemperature();
+  float humidity = dht.readHumidity();
 
-  float humidity = dht.readHumidity();  
+  bool validReading = controller.update(temperatureCelsius);
 
-  Serial.print("Temperature = ");
-  Serial.print(temperature);
-  Serial.println("°F");
-  Serial.print("Humidity = ");
-  Serial.print(humidity);
-  Serial.println("%");
+  if (validReading) {
+    Serial.print("Temperature = ");
+    Serial.print(controller.temperatureF());
+    Serial.println("°F");
+    Serial.print("Humidity = ");
+    Serial.print(humidity);
+    Serial.println("%");
+  } else {
+    Serial.println("Sensor read failed");
+  }
 
 
-  if (temperature > threshold) {
-    lcd.clear();
-    lcd.setCursor(0, 0);  
+  digitalWrite(FAN, controller.fanOn() ? HIGH : LOW);
+  digitalWrite(RED_LIGHT, controller.led() == Led::Red ? HIGH : LOW);
+  digitalWrite(BLUE_LIGHT, controller.led() == Led::Blue ? HIGH : LOW);
+
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  if (validReading) {
     lcd.print("Temp: ");
-    lcd.print(temperature);
+    lcd.print(controller.temperatureF());
     lcd.print(" F");
+  } else {
+    lcd.print("Sensor error");
+  }
 
-    digitalWrite(FAN, HIGH);
-    digitalWrite(RED_LIGHT, LOW);
-    digitalWrite(BLUE_LIGHT, HIGH);
+  lcd.setCursor(0, 1);
+  if (controller.fanOn()) {
     Serial.println("Fan ON");
-    lcd.setCursor(0, 1);  
     lcd.print("Fan On");
   } else {
-    lcd.clear();
-    lcd.setCursor(0, 0);  
-    lcd.print("Temp: ");
-    lcd.print(temperature);
-    lcd.print(" F");
-
-    digitalWrite(FAN, LOW);
-    digitalWrite(RED_LIGHT, HIGH);
-    digitalWrite(BLUE_LIGHT, LOW);
     Serial.println("Fan OFF");
-    lcd.setCursor(0, 1);  
     lcd.print("Fan Off");
   }
 

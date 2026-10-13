@@ -1,0 +1,14 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run tests with ${{ matrix.compiler }}
+        run: make test CXX=${{ matrix.compiler }}
